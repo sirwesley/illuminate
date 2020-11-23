@@ -92,6 +92,7 @@ module.exports = class Illuminate {
         console.log('speed', data[4]);
         console.log('red', data[6], 'green', data[7], 'blue', data[8], 'white', data[9]);
       }
+      return data;
     });
 
     this._sendMessage([0xef, 0x01, 0x77]);
@@ -155,7 +156,6 @@ module.exports = class Illuminate {
     this._sendMessage(ary);
   }
 
-
   /* Update Pattern
 *
 * Sent
@@ -169,6 +169,17 @@ module.exports = class Illuminate {
 * Byte: 0x55
 *
 */
+  updatePattern (pattern) {
+    let ary = [0x88];
+    const numColors = pattern.length;
+    ary = ary.concat(numColors);
+    for (var idx = 0; idx < numColors; idx++) {
+      ary = ary.concat(Object.values(pattern[idx]));
+    }
+    ary = ary.concat(0x55);
+    console.log('pattern: ', ary);
+    this._sendMessage(ary);
+  }
 
   /* Custom
   *
@@ -196,17 +207,36 @@ module.exports = class Illuminate {
   * Byte: 0x66
   */
 
-  custom (mode, speed, ...colors) {
+  custom (obj) {
+    const mode = obj.mode;
+    const speed = obj.speed;
+    const colors = obj.colors;
+    const numColors = colors.length;
     let ary = [0x99];
+
+    let modeHex = 0;
+    switch (mode) {
+      case 'gradual':
+        modeHex = 1;
+        break;
+      case 'jump':
+        modeHex = 2;
+        break;
+      case 'fade':
+        modeHex = 3;
+        break;
+    }
+
     for (var idx = 0; idx < 16; idx++) {
-      if (idx < colors.length) {
-        ary = ary.concat(colors[idx]);
+      if (idx < numColors) {
+        ary = ary.concat(Object.values(colors[idx]));
       } else {
         ary = ary.concat([1, 2, 3]);
       }
     }
-    ary = ary.concat(speed);
-    ary = ary.concat(mode + 0x39);
+
+    ary = ary.concat(speed); // speed
+    ary = ary.concat(modeHex + 0x39);
     ary = ary.concat([0xff, 0x66]);
     console.log(ary);
     this._sendMessage(ary);
@@ -224,7 +254,6 @@ module.exports = class Illuminate {
   program (programNumber, speed) {
     this._sendMessage([0xbb, programNumber + 0x24, speed, 0x44]);
   }
-
 
   _sendMessage (data) {
     debug('sending <', ...data.map((val) => val.toString(16)), '>');

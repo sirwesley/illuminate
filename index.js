@@ -7,42 +7,63 @@ var fs = require('fs');
 var app = express();
 
 const port = 3000;
-const IP = '192.168.1.XXX,192.168.1.XXX'; // Comma delimited string of Lighting Module IP address - 192.168.1.XXX';
+const IP = '192.168.1.xxx,192.168.1.xxx'; // <--- insert your IPs here - 192.168.1.XXX';
+let text = '';
 
 app.get('/', function (request, response) {
-  console.log('GET /');
-  console.log(request.query);
-
   if (request.query.hasOwnProperty('test')) {
     const test = request.query.test;
     switch (test) {
-      case '0':
+      case '0': // Red Test
         execute(IP, 'updateColor', { r: 255, g: 0, b: 0, w: 0 });
+        text = 'updateColor: red';
         break;
-      case '1':
+      case '1': // Green Test
         execute(IP, 'updateColor', { r: 0, g: 255, b: 0, w: 0 });
+        text = 'updateColor: green';
         break;
-      case '2':
+      case '2': // Blue Test
         execute(IP, 'updateColor', { r: 0, g: 0, b: 255, w: 0 });
+        text = 'updateColor: blue';
         break;
-      case '3':
-        execute(IP, 'updateColor', { r: 0, g: 0, b: 0, w: 255 });
+      case '3': // Custom Test
+        execute(IP, 'custom', {
+          colors: [
+            { r: 255, g: 0, b: 0 },
+            { r: 0, g: 255, b: 0 },
+            { r: 0, g: 0, b: 255 }],
+          speed: 100,
+          mode: 'jump'
+        });
+        text = 'custom: Jumping Red, Green, Blue';
         break;
-      case '4':
+      case '4': // Timeout Test
         // Flips between Blue and White
         execute(IP, 'updateColor', { r: 0, g: 0, b: 255, w: 0 });
         setTimeout(() => {
           execute(IP, 'updateColor', { r: 0, g: 0, b: 0, w: 255 });
-        }, 1000, 'funky');
-
+        }, 1000, 'colorTimeout');
+        text = 'Timeout: blue/white toggle 1 sec';
         break;
-      default:
+      case '5': // Program Test
         execute(IP, 'program', { program: 1, speed: 50 });
+        text = 'program: running program #1 at Speed 50%';
+        break;
+      case '6': // Pattern Test
+        execute(IP, 'updatePattern', [
+          { r: 255, g: 0, b: 0 },
+          { r: 0, g: 255, b: 0 },
+          { r: 0, g: 0, b: 255 }
+        ]);
+        text = 'pattern: Every other light Red, Green, Blue';
+        break;
+      default: // Status Response
+        execute(IP, 'status', { });
+        text = 'status: status of light module';
         break;
     }
+    response.send('<h2>' + text + '</h2>');
   }
-
-  response.send(request.query);
 });
 
 app.listen(port);
@@ -81,12 +102,16 @@ function execute (ips, type, params) {
             paramsArr = [Object.values(args)];
             break;
           case 'custom':
-            paramsArr.push(args[0]);
-            paramsArr.push(args[1]);
-            paramsArr = paramsArr.concat(args.slice(2).map((color) => parse(color).values));
+            paramsArr = [args];
+            // paramsArr.push(args[0]);
+            // paramsArr.push(args[1]);
+            // paramsArr = paramsArr.concat(args.slice(2).map((color) => parse(color).values));
             break;
           case 'program':
             paramsArr = Object.values(args);
+            break;
+          case 'updatePattern':
+            paramsArr = [args];
             break;
         }
         debug('parameters', paramsArr);
