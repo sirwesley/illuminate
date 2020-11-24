@@ -113,9 +113,12 @@ module.exports = class Illuminate {
   * Response
   * None
   */
-
+  /**
+   * Updates the Colors for the entire string
+   * @param color - static single color
+   */
   updateColor (color) {
-    this._sendMessage([0x56].concat(color).concat(0xAA));
+    this._sendMessage([0x56].concat(Object.values(color)).concat(0xAA));
   }
 
   warm () {
@@ -142,33 +145,19 @@ module.exports = class Illuminate {
     this.updateColor([0, 0, 255, 0])
   } */
 
-  /**
-   * Updates the Colors for the entire string
-   * @param colors
-   */
-  updateColors (colors) {
-    let ary = [0x88];
-    ary = ary.concat(colors.length);
-    for (var idx = 0; idx < colors.length; idx++) {
-      ary = ary.concat(colors[idx]);
-    }
-    ary = ary.concat(0x55);
-    this._sendMessage(ary);
-  }
-
   /* Update Pattern
-*
-* Sent
-* Byte: 0x88
-* Byte: 0x05 Number of colors?
-* 3 Bytes: ff 00 00 Color 1?
-* 3 Bytes: ff 4e 00 Color 2?
-* 3 Bytes: 00 c8 00 Color 3
-* 3 Bytes: 00 00 ff Color 4
-* 3 Bytes: 80 00 80 Color 5
-* Byte: 0x55
-*
-*/
+  *
+  * Sent
+  * Byte: 0x88
+  * Byte: 0x05 Number of colors?
+  * 3 Bytes: ff 00 00 Color 1?
+  * 3 Bytes: ff 4e 00 Color 2?
+  * 3 Bytes: 00 c8 00 Color 3
+  * 3 Bytes: 00 00 ff Color 4
+  * 3 Bytes: 80 00 80 Color 5
+  * Byte: 0x55
+  *
+  */
   updatePattern (pattern) {
     let ary = [0x88];
     const numColors = pattern.length;
@@ -177,7 +166,6 @@ module.exports = class Illuminate {
       ary = ary.concat(Object.values(pattern[idx]));
     }
     ary = ary.concat(0x55);
-    console.log('pattern: ', ary);
     this._sendMessage(ary);
   }
 
@@ -238,7 +226,6 @@ module.exports = class Illuminate {
     ary = ary.concat(speed); // speed
     ary = ary.concat(modeHex + 0x39);
     ary = ary.concat([0xff, 0x66]);
-    console.log(ary);
     this._sendMessage(ary);
   }
 
@@ -251,7 +238,9 @@ module.exports = class Illuminate {
   * Byte: 0x44
   */
 
-  program (programNumber, speed) {
+  program (obj) {
+    const programNumber = obj.program || 0;
+    const speed = obj.speed || 0;
     this._sendMessage([0xbb, programNumber + 0x24, speed, 0x44]);
   }
 

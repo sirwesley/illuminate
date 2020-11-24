@@ -4,16 +4,18 @@ const debug = require('debug')('illuminate:main');
 const parse = require('color-parse');
 var express = require('express');
 var e131 = require('e131');
-var fs = require('fs');
 var app = express();
 
-const e131Port = 5568;
+const e131Port = 5568; // e131 Port - Default = 5568
+const port = 3000; // Web server Port
+const illuminatePort = 5577; // Illuminate Modules Port
+const deviceIPs = ['192.168.1.27', '192.168.1.42']; // <--- insert your IPs here - 192.168.1.XXX';
+const universes = [0x0001]; // sACN Listening Universes
+
 let lastSlotData = 0;
-const port = 3000;
-const IP = '192.168.1.XXX,192.168.1.XXX'; // <--- insert your IPs here - 192.168.1.XXX';
 
 // sACN Server listening for VIXEN data.
-var server = new e131.Server([0x0001, 0x0002], e131Port);
+var server = new e131.Server(universes, e131Port);
 server.on('listening', function () {
   console.log('server listening on port %d, universes %j', this.port, this.universes);
 });
@@ -27,21 +29,23 @@ server.on('packet', function (packet) {
     sourceName, sequenceNumber, universe, slotsData.length);
   console.log('slots data = %s', slotsData.toString('hex'));
 
-  let configSlot = slotsData[0]; // Determines number of Color Segments
-  console.log(configSlot);
+  let configSlot = slotsData[0]; // First Byte used to determine number of Color Segments
 
   let newSlotData = slotsData.toString('hex');
 
+  // Check for New Data
   if (newSlotData !== lastSlotData) {
-    if (configSlot > 1) {
+    // Check if we are in range to use a pattern
+    if (configSlot > 1 && configSlot <= 16) {
       let patternsArray = [];
       for (var i = 0; i < configSlot; i++) {
         const offset = i * 3;
         patternsArray.push({ r: slotsData[(1 + offset)], g: slotsData[2 + offset], b: slotsData[3 + offset] });
       }
-      execute(IP, 'updatePattern', patternsArray);
-    } else {
-      execute(IP, 'updateColor', { r: slotsData[1], g: slotsData[2], b: slotsData[3], w: 0 });
+      execute(deviceIPs, 'updatePattern', patternsArray);
+    } else { // Otherwise we use the first 4 slots to pick our color.
+      const updateColorData = { r: slotsData[1], g: slotsData[2], b: slotsData[3], w: slotsData[4] };
+      execute(deviceIPs, 'updateColor', updateColorData);
     }
     lastSlotData = newSlotData; // Update LastSlotData
   }
@@ -55,19 +59,19 @@ app.get('/', function (request, response) {
     const test = request.query.test;
     switch (test) {
       case '0': // Red Test
-        execute(IP, 'updateColor', { r: 255, g: 0, b: 0, w: 0 });
+        execute(deviceIPs, 'updateColor', { r: 255, g: 0, b: 0, w: 0 });
         text = 'updateColor: red';
         break;
       case '1': // Green Test
-        execute(IP, 'updateColor', { r: 0, g: 255, b: 0, w: 0 });
+        execute(deviceIPs, 'updateColor', { r: 0, g: 255, b: 0, w: 0 });
         text = 'updateColor: green';
         break;
       case '2': // Blue Test
-        execute(IP, 'updateColor', { r: 0, g: 0, b: 255, w: 0 });
+        execute(deviceIPs, 'updateColor', { r: 0, g: 0, b: 255, w: 0 });
         text = 'updateColor: blue';
         break;
       case '3': // Custom Test
-        execute(IP, 'custom', {
+        execute(deviceIPs, 'custom', {
           colors: [
             { r: 255, g: 0, b: 0 },
             { r: 0, g: 255, b: 0 },
@@ -79,18 +83,18 @@ app.get('/', function (request, response) {
         break;
       case '4': // Timeout Test
         // Flips between Blue and White
-        execute(IP, 'updateColor', { r: 0, g: 0, b: 255, w: 0 });
+        execute(deviceIPs, 'updateColor', { r: 0, g: 0, b: 255, w: 0 });
         setTimeout(() => {
-          execute(IP, 'updateColor', { r: 0, g: 0, b: 0, w: 255 });
+          execute(deviceIPs, 'updateColor', { r: 0, g: 0, b: 0, w: 255 });
         }, 1000, 'colorTimeout');
         text = 'Timeout: blue/white toggle 1 sec';
         break;
       case '5': // Program Test
-        execute(IP, 'program', { program: 1, speed: 50 });
+        execute(deviceIPs, 'program', { program: 1, speed: 50 });
         text = 'program: running program #1 at Speed 50%';
         break;
       case '6': // Pattern Test
-        execute(IP, 'updatePattern', [
+        execute(deviceIPs, 'updatePattern', [
           { r: 255, g: 0, b: 0 },
           { r: 0, g: 255, b: 0 },
           { r: 0, g: 0, b: 255 }
@@ -98,7 +102,7 @@ app.get('/', function (request, response) {
         text = 'pattern: Every other light Red, Green, Blue';
         break;
       default: // Status Response
-        execute(IP, 'status', { });
+        execute(deviceIPs, 'status', { });
         text = 'status: status of light module';
         break;
     }
@@ -111,47 +115,29 @@ console.log(`Listening at http://localhost:${port}`);
 
 /**
  * Sends Config Message to Light Control Module via IP
- * @param ips - Comma Delimited List of Module IPs
- * @param type - Command Type ( updateColor, program, custom)
- * @param params - Params corresponding to defined Type.
+ * @param hosts - array of IP Addresses corresponding to the Light Modules Base
+ * @param command - updateColor, custom, updatePattern, program
+ * @param args - supporting values corresponding to the Commands
  */
-function execute (ips, type, params) {
-  const hosts = ips.split(',');
-  const command = type;
-  const args = params;
-
+function execute (hosts, command, args) {
   for (const host of hosts) {
     const client = new net.Socket();
     console.log(host, command, args);
-    client.connect(5577, host, function () {
+    client.connect(illuminatePort, host, function () {
       const protocol = new Protocol(client);
       let paramsArr = [];
       let response = null;
 
-      // console.log(colors)
       if (command in protocol) {
         switch (command) {
           case 'updateColor':
-            if (args.length === 1) {
-              paramsArr = [parse(args[0]).values.concat(0)]; // [ R, G, B, 0 ]
-            } else {
-              paramsArr = [Object.values(args)];
-            }
-            break;
-          case 'updateColors':
-            paramsArr = [Object.values(args)];
-            break;
           case 'custom':
-            paramsArr = [args];
-            // paramsArr.push(args[0]);
-            // paramsArr.push(args[1]);
-            // paramsArr = paramsArr.concat(args.slice(2).map((color) => parse(color).values));
-            break;
           case 'program':
-            paramsArr = Object.values(args);
-            break;
           case 'updatePattern':
             paramsArr = [args];
+            break;
+          default:
+            paramsArr = [];
             break;
         }
         debug('parameters', paramsArr);
