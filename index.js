@@ -9,8 +9,8 @@ var app = express();
 const e131Port = 5568; // e131 Port - Default = 5568
 const port = 3000; // Web server Port
 const illuminatePort = 5577; // Illuminate Modules Port
-const deviceIPs = ['192.168.1.27', '192.168.1.42']; // <--- insert your IPs here - 192.168.1.XXX';
-const universes = [0x0001]; // sACN Listening Universes
+const deviceIPs = ['192.168.1.42', '192.168.1.27']; // <--- insert your IPs here - 192.168.1.XXX'; //'192.168.1.27'
+const universes = [0x0002]; // sACN Listening Universes
 
 let lastSlotData = 0;
 
@@ -25,26 +25,20 @@ server.on('packet', function (packet) {
   var universe = packet.getUniverse();
   var slotsData = packet.getSlotsData();
 
-  console.log('source="%s", seq=%d, universe=%d, slots=%d',
-    sourceName, sequenceNumber, universe, slotsData.length);
-  console.log('slots data = %s', slotsData.toString('hex'));
-
-  let configSlot = slotsData[0]; // First Byte used to determine number of Color Segments
-
   let newSlotData = slotsData.toString('hex');
 
   // Check for New Data
   if (newSlotData !== lastSlotData) {
+    console.log('source="%s", seq=%d, universe=%d, slots=%d', sourceName, sequenceNumber, universe, slotsData.length);
+    console.log('slots data = %s', slotsData.toString('hex'));
     // Check if we are in range to use a pattern
-    if (configSlot > 1 && configSlot <= 16) {
-      let patternsArray = [];
-      for (var i = 0; i < configSlot; i++) {
-        const offset = i * 3;
-        patternsArray.push({ r: slotsData[(1 + offset)], g: slotsData[2 + offset], b: slotsData[3 + offset] });
-      }
-      execute(deviceIPs, 'updatePattern', patternsArray);
+    if (slotsData[0] === 255) {
+      const programMode = slotsData[1] > 20 ? 0 : slotsData[1];
+      const speed = slotsData[2] < 1 || slotsData[2] > 101 ? 50 : slotsData[2] - 1;
+      console.log(programMode, speed);
+      execute(deviceIPs, 'program', { program: programMode, speed: speed });
     } else { // Otherwise we use the first 4 slots to pick our color.
-      const updateColorData = { r: slotsData[1], g: slotsData[2], b: slotsData[3], w: slotsData[4] };
+      const updateColorData = { r: slotsData[3], g: slotsData[4], b: slotsData[5], w: slotsData[6] };
       execute(deviceIPs, 'updateColor', updateColorData);
     }
     lastSlotData = newSlotData; // Update LastSlotData
