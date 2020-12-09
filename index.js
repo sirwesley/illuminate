@@ -48,6 +48,7 @@ server.on('packet', function (packet) {
 let text = '';
 
 // RESTful endpoint for GET updates.  Primary used for Testing
+/*
 app.get('/', function (request, response) {
   if (request.query.hasOwnProperty('test')) {
     const test = request.query.test;
@@ -105,7 +106,7 @@ app.get('/', function (request, response) {
 });
 
 app.listen(port);
-console.log(`Listening at http://localhost:${port}`);
+console.log(`Listening at http://localhost:${port}`); */
 
 /**
  * Sends Config Message to Light Control Module via IP
