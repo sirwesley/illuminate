@@ -9,7 +9,7 @@ var app = express();
 const e131Port = 5568; // e131 Port - Default = 5568
 const port = 3000; // Web server Port
 const illuminatePort = 5577; // Illuminate Modules Port
-const deviceIPs = ['192.168.1.42', '192.168.1.27']; // <--- insert your IPs here - 192.168.1.XXX'; //'192.168.1.27'
+const deviceIPs = ['192.168.50.43']; // <--- insert your IPs here - 192.168.1.XXX'; //'192.168.1.27'
 const universes = [0x0002]; // sACN Listening Universes
 
 let lastSlotData = 0;
@@ -48,7 +48,7 @@ server.on('packet', function (packet) {
 let text = '';
 
 // RESTful endpoint for GET updates.  Primary used for Testing
-/*
+
 app.get('/', function (request, response) {
   if (request.query.hasOwnProperty('test')) {
     const test = request.query.test;
@@ -106,7 +106,7 @@ app.get('/', function (request, response) {
 });
 
 app.listen(port);
-console.log(`Listening at http://localhost:${port}`); */
+console.log(`Listening at http://localhost:${port}`);
 
 /**
  * Sends Config Message to Light Control Module via IP
@@ -142,6 +142,12 @@ function execute (hosts, command, args) {
       Promise.resolve(response).then(() => {
         client.destroy();
       });
+    });
+
+    client.on('error', (ex) => {
+      console.log('handled error');
+      console.log(ex);
+      client.destroy();
     });
   }
 }
